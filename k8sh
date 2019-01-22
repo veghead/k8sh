@@ -24,6 +24,62 @@ reloadExtensions() {
 }
 export -f reloadExtensions
 
+set_kubectl_bin() {
+  export KUBECTL_BIN=$1
+  alias kubectl="$KUBECTL_BIN --context \$KUBECTL_CONTEXT --namespace \$KUBECTL_NAMESPACE"
+}
+export -f set_kubectl_bin
+
+sc() {
+  CONFIG=$1
+  CCOUNT=${#CLUSTER_CONFIG[*]}
+  I=0
+  while [ $I -lt $CCOUNT ]
+  do
+    set ${CLUSTER_CONFIG[$I]}
+    if [ "${CONFIG}" == "$1" ]
+    then
+      if [ -f "${HOME}/.kube/$2" ]
+      then
+        export KUBECONFIG="${HOME}/.kube/$2"
+        export KUBECTL_CONTEXT="$2"
+        export KUBECTL_NAMESPACE="$3"
+        if [ "$4" != "" ]
+        then
+          set_kubectl_bin "$4"
+        fi
+        echo "Set config to ${CONFIG}"
+        return
+      else
+        echo "Config not found: ${HOME}/.kube/$2"
+        return
+      fi
+    fi
+    let I=I+1
+  done
+  echo "No such config: ${CONFIG}"
+}
+export -f sc
+
+load_configs() {
+  CLUSTER_CONFIG=()
+  NUM=0
+  if [[ -f ~/.k8sh_configs ]]
+  then
+    while IFS='' read -r LINE || [[ -n "${LINE}" ]]; do
+      if [[ ! ${LINE} =~ "#" ]]
+      then
+        CLUSTER_CONFIG[${NUM}]="${LINE}"
+        let NUM=NUM+1
+      fi
+    done < ~/.k8sh_configs
+  fi
+  echo "${NUM} configs loaded"
+  export CLUSTER_CONFIG
+}
+
+export -f load_configs
+
 k8sh_init() {
 
   RED='\033[00;31m'
@@ -79,7 +135,9 @@ k8sh_init() {
   export KUBECTL_NAMESPACE=${DEFAULT_NAMESPACE-default}
 
   echo "Making aliases..."
-  alias kubectl="kubectl --context \$KUBECTL_CONTEXT --namespace \$KUBECTL_NAMESPACE"
+  set_kubectl_bin kubectl
+  load_configs
+
   alias k="kubectl"
 
   # Common actions
